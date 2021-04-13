@@ -1,69 +1,76 @@
+import re
+from collections import Counter
+from nltk import ngrams
+import math
+
 class Spell_Checker:
     """The class implements a context sensitive spell checker. The corrections
         are done in the Noisy Channel framework, based on a language model and
         an error distribution model.
     """
 
-    def __init__(self, ​ ​lm=None):
-        """Initializing a spell checker object with a language model as an
-        instance  variable.
+    """Initializing a spell checker object with a language model as an
+    instance  variable.
 
-        Args:
-            lm: a language model object. Defaults to None
-        """
+    Args:
+    lm: a language model object. Defaults to None
+    """
+    def __init__(self, lm = None):
         self.lm = lm
 
+    """Adds the specified language model as an instance variable.
+    (Replaces an older LM dictionary if set)
+
+    Args:
+    lm: a Spell_Checker.Language_Model object
+    """
     def add_language_model(self, lm):
-        """Adds the specified language model as an instance variable.
-        (Replaces an older LM dictionary if set)
+        self.lm = lm
 
-        Args:
-            lm: a Spell_Checker.Language_Model object
-        """
-
-
-def add_error_tables(self, error_tables):
     """ Adds the speficied dictionary of error tables as an instance variable.
-        (Replaces an older value disctionary if set)
+    (Replaces an older value disctionary if set)
+
+    Args:
+    error_tables (dict): a dictionary of error tables in the format
+    returned by  learn_error_tables()
+    """
+    def add_error_tables(self, error_tables):
+        self.error_table = error_tables
+
+    """Returns the log-likelihod of the specified text given the language
+    model in use. Smoothing should be applied on texts containing OOV words
+
+    Args:
+    text (str): Text to evaluate.
+
+    Returns:
+    Float. The float should reflect the (log) probability.
+    """
+    def evaluate(self, text):
+        return 0
+
+    """ Returns the most probable fix for the specified text. Use a simple
+        noisy channel model is the number of tokens in the specified text is
+        smaller than the length (n) of the language model.
 
         Args:
-        error_tables (dict): a dictionary of error tables in the format
-        returned by  learn_error_tables()
+            text (str): the text to spell check.
+            alpha (float): the probability of keeping a lexical word as is.
+
+        Return:
+            A modified string (or a copy of the original if no corrections are made.)
     """
-
-
-def evaluate(self, text):
-    """Returns the log-likelihod of the specified text given the language
-        model in use. Smoothing should be applied on texts containing OOV words
-
-       Args:
-           text (str): Text to evaluate.
-
-       Returns:
-           Float. The float should reflect the (log) probability.
-    """
-
     def spell_check(self, text, alpha):
-        """ Returns the most probable fix for the specified text. Use a simple
-            noisy channel model is the number of tokens in the specified text is
-            smaller than the length (n) of the language model.
-
-            Args:
-                text (str): the text to spell check.
-                alpha (float): the probability of keeping a lexical word as is.
-
-            Return:
-                A modified string (or a copy of the original if no corrections are made.)
-        """
+        return 0
 
     #####################################################################
     #                   Inner class                                     #
     #####################################################################
 
     class Language_Model:
-        """The class implements a Markov Language Model that learns amodel from a given text.
+        """The class implements a Markov Language Model that learns a model from a given text.
             It supoprts language generation and the evaluation of a given string.
-            The class can be applied on both word level and caracter level.
+            The class can be applied on both word level and character level.
         """
 
         def __init__(self, n=3, chars=False):
@@ -75,60 +82,80 @@ def evaluate(self, text):
             """
             self.n = n
             self.model_dict = None  # a dictionary of the form {ngram:count}, holding counts of all ngrams in the specified text.
+            self.vocabulary = None
+            self.n_minus_one_dict = None
 
-        def build_model(self, text):  # should be called build_model
-            """populates the instance variable model_dict.
+        """populates the instance variable model_dict.
+        Args:
+            text (str): the text to construct the model from.
+        """
+        def build_model(self, text):
+            my_ngrams = ngrams(re.findall(r'\w+', text.lower()), self.n)
+            self.model_dict = dict(Counter(my_ngrams))
+            self.n_minus_one_dict = dict(Counter(ngrams(re.findall(r'\w+', text.lower()), self.n-1)))
+            self.vocabulary = dict(Counter(re.findall(r'\w+', text.lower())))
 
-                Args:
-                    text (str): the text to construct the model from.
-            """
+
+        # def P(word, N, WORDS):
+        #     "Probability of `word`."
+        #     return WORDS[word] / N
+
 
         def get_model_dictionary(self):
-            """Returns the dictionary class object
-            """
             return self.model_dict
 
         def get_model_window_size(self):
-            """Returning the size of the context window (the n in "n-gram")
-            """
             return self.n
 
+        """Returns a string of the specified length, generated by applying the language model
+                    to the specified seed context. If no context is specified the context should be sampled
+                    from the models' contexts distribution. Generation should stop before the n'th word if the
+                    contexts are exhausted. If the length of the specified context exceeds (or equal to)
+                    the specified n, the method should return the a prefix of length n of the specified context.
+
+                        Args:
+                            context (str): a seed context to start the generated string from. Defaults to None
+                            n (int): the length of the string to be generated.
+
+                        Return:
+                            String. The generated text.
+
+                    """
         def generate(self, context=None, n=20):
-            """Returns a string of the specified length, generated by applying the language model
-            to the specified seed context. If no context is specified the context should be sampled
-            from the models' contexts distribution. Generation should stop before the n'th word if the
-            contexts are exhausted. If the length of the specified context exceeds (or equal to)
-            the specified n, the method should return the a prefix of length n of the specified context.
+            return 0
 
-                Args:
-                    context (str): a seed context to start the generated string from. Defaults to None
-                    n (int): the length of the string to be generated.
 
-                Return:
-                    String. The generated text.
+        """Returns the log-likelihood of the specified text to be a product of the model.
+        Laplace smoothing should be applied if necessary.
 
-            """
+        Args:
+        text (str): Text to evaluate.
 
+        Returns:
+        Float. The float should reflect the (log) probability.
+        """
         def evaluate(self, text):
-            """Returns the log-likelihood of the specified text to be a product of the model.
-               Laplace smoothing should be applied if necessary.
+            text_ngrams = ngrams(re.findall(r'\w+', text.lower()), self.n)
+            ngrams_probabilities = {}
+            for ngram in text_ngrams:
+                ngrams_probabilities[ngram] = self.model_dict[ngram]/self.n_minus_one_dict[ngram.rsplit(' ', 1)[0]]
+            multiply = 1
+            for ngram in ngrams_probabilities:
+                multiply = multiply * ngrams_probabilities[ngram]
+            return math.log10(multiply)
 
-               Args:
-                   text (str): Text to evaluate.
-
-               Returns:
-                   Float. The float should reflect the (log) probability.
-            """
-
+        """Returns the smoothed (Laplace) probability of the specified ngram.
+        Args:
+        ngram (str): the ngram to have it's probability smoothed
+        Returns:
+        float. The smoothed probability.
+        """
         def smooth(self, ngram):
-            """Returns the smoothed (Laplace) probability of the specified ngram.
+            ngram_minus_one = ngram.rsplit(' ', 1)[0]
+            mone = self.model_dict[ngram] + 1
+            mechane = self.n_minus_one_dict[ngram_minus_one] + len(self.n_minus_one_dict)
+            return mone/mechane
 
-                Args:
-                    ngram (str): the ngram to have it's probability smoothed
-
-                Returns:
-                    float. The smoothed probability.
-            """
 
 
 def normalize_text(text):
