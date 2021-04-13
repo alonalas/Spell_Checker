@@ -95,12 +95,6 @@ class Spell_Checker:
             self.n_minus_one_dict = dict(Counter(ngrams(re.findall(r'\w+', text.lower()), self.n-1)))
             self.vocabulary = dict(Counter(re.findall(r'\w+', text.lower())))
 
-
-        # def P(word, N, WORDS):
-        #     "Probability of `word`."
-        #     return WORDS[word] / N
-
-
         def get_model_dictionary(self):
             return self.model_dict
 
@@ -124,26 +118,6 @@ class Spell_Checker:
         def generate(self, context=None, n=20):
             return 0
 
-
-        """Returns the log-likelihood of the specified text to be a product of the model.
-        Laplace smoothing should be applied if necessary.
-
-        Args:
-        text (str): Text to evaluate.
-
-        Returns:
-        Float. The float should reflect the (log) probability.
-        """
-        def evaluate(self, text):
-            text_ngrams = ngrams(re.findall(r'\w+', text.lower()), self.n)
-            ngrams_probabilities = {}
-            for ngram in text_ngrams:
-                ngrams_probabilities[ngram] = self.model_dict[ngram]/self.n_minus_one_dict[ngram.rsplit(' ', 1)[0]]
-            multiply = 1
-            for ngram in ngrams_probabilities:
-                multiply = multiply * ngrams_probabilities[ngram]
-            return math.log10(multiply)
-
         """Returns the smoothed (Laplace) probability of the specified ngram.
         Args:
         ngram (str): the ngram to have it's probability smoothed
@@ -156,6 +130,28 @@ class Spell_Checker:
             mechane = self.n_minus_one_dict[ngram_minus_one] + len(self.n_minus_one_dict)
             return mone/mechane
 
+        """Returns the log-likelihood of the specified text to be a product of the model.
+        Laplace smoothing should be applied if necessary.
+        Args:
+        text (str): Text to evaluate.
+        Returns:
+        Float. The float should reflect the (log) probability.
+        """
+
+        def evaluate(self, text):
+            text_ngrams = ngrams(re.findall(r'\w+', text.lower()), self.n)
+            ngrams_probabilities = {}
+            for ngram in text_ngrams:
+                ngram_minus_one = ngram.rsplit(' ', 1)[0]
+                if (ngram not in self.model_dict) or (ngram_minus_one not in self.n_minus_one_dict):
+                    probability = self.smooth(ngram)
+                else:
+                    probability = self.model_dict[ngram] / self.n_minus_one_dict[ngram_minus_one]
+                ngrams_probabilities[ngram] = probability
+            multiply = 1
+            for ngram in ngrams_probabilities:
+                multiply = multiply * ngrams_probabilities[ngram]
+            return math.log10(multiply)
 
 
 def normalize_text(text):
@@ -175,4 +171,4 @@ def who_am_i():  # this is not a class method
     """Returns a ductionary with your name, id number and email. keys=['name', 'id','email']
         Make sure you return your own info!
     """
-    return {'name': 'John Doe', 'id': '012345678', 'email': 'jdoe@post.bgu.ac.il'}
+    return {'name': 'Alona Lasry', 'id': '205567944', 'email': 'alonalas@post.bgu.ac.il'}
