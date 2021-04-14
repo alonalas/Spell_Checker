@@ -108,19 +108,21 @@ class Spell_Checker:
         def get_model_window_size(self):
             return self.n
 
-        def create_context_randomly(self, n):
-            random_ngram = random.choices(self.model_dict.keys(), weights=list(self.model_dict.values()), k=1)[0]
-            context = random_ngram
-            if self.n < n:
-                for i in range (0,n-self.n):
-                    end = random_ngram.split(' ', 1)[1]
-                    sub_dict = {k: v for k, v in self.model_dict.items() if k.startswith(end + " ")}
-                    addition = random.choices(sub_dict.keys(), weights=list(sub_dict.values()),
-                                                       k=1)[0].split()[-1]
-                    context = context + " " + addition
-                    random_ngram = end + " "+ addition
-                return context
+        def complete_context(self, n, context):
+            current_ngram = context
+            for i in range(0, n - self.n):
+                end = current_ngram.split(' ', 1)[1]
+                sub_dict = {k: v for k, v in self.model_dict.items() if k.startswith(end + " ")}
+                addition = random.choices(sub_dict.keys(), weights=list(sub_dict.values()),
+                                          k=1)[0].split()[-1]
+                context = context + " " + addition
+                current_ngram = end + " " + addition
+            return context
 
+        def create_context_randomly(self, n):
+            if self.n < n:
+                first_ngram = random.choices(self.model_dict.keys(), weights=list(self.model_dict.values()), k=1)[0]
+                return self.complete_context(self,n,first_ngram)
             elif self.n == n: #one ngram is enough
                 return random.choices(self.model_dict.keys(), weights=list(self.model_dict.values()), k=1)[0]
             else: #ngrams are greater than n, choose a random ngram and substring it to size n
@@ -147,7 +149,7 @@ class Spell_Checker:
         """
         def generate(self, context=None, n=20):
             if context == None:
-                context = self.create_context_randomly(self,n)
+                return self.create_context_randomly(self,n)
 
             elif len(context) >= n:
                 words = context.split()
@@ -157,7 +159,11 @@ class Spell_Checker:
                 return prefix
 
             else: #regular case, a given context in size smaller than n-> complete the sentence
-                return 0
+                words = context.split()
+                last_n_words = words[len(words) - self.n]
+                for i in (len(words) - self.n + 1,len(words)):
+                    last_n_words = last_n_words + words[i]
+                return self.complete_context(n,last_n_words)
 
         """Returns the smoothed (Laplace) probability of the specified ngram.
         Args:
