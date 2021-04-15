@@ -193,7 +193,10 @@ class Spell_Checker:
                                             return context
                                         elif len(shortened_end.split()) == 1 and shortened_end in self.vocabulary.keys():
                                             break
-                                    random_ngram_completion = context + " " + random.choices(list(sub_dict.keys()), weights=list(sub_dict.values()), k=1)[0].split(' ', 1)[1]
+
+                                    addition = random.choices(list(sub_dict.keys()), weights=list(sub_dict.values()),
+                                                              k=1)[0].split()[-1]
+                                    random_ngram_completion = context + " " + addition
                                     return self.complete_context(n,random_ngram_completion)
                     else: #regular case, a given context in size smaller than n-> complete the sentence
                         return self.complete_context(n,context)
