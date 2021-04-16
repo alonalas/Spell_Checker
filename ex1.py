@@ -34,65 +34,109 @@ class Spell_Checker:
         Return:
             A modified string (or a copy of the original if no corrections are made.)
     """
-
     def spell_check(self, text, alpha):
         splitted_text = text.split()
         for i in range(0, len(splitted_text)):
             if splitted_text[i] not in self.lm.vocabulary:
-                if splitted_text[i] in self.error_table:
-                    splitted_text[i] = self.error_table[splitted_text[i]]
-                else:
-                    candidates = self.candidates(splitted_text[i])
-                    max_candidate = max(candidates, key=self.P)
-                    splitted_text[i] = max_candidate
+                candidates = self.candidates(splitted_text[i])
+                # Ps = {}
+                # for candidate in candidates:
+                #     Ps[candidate[0]] = self.P(candidate)
+                max_candidate = max(candidates, key=self.P)
+                splitted_text[i] = max_candidate[0]
                 return " ".join(splitted_text)
         # we only achieved here if the text does not include a word that doesnt exist (assumption: a text includes only one error)
 
     def candidates(self, word):
         "Generate possible spelling corrections for word."
-        return self.known([word], None) or self.known(self.edits1(word), "edit") or self.known(self.edits2(word),
-                                                                                               "edit") or [word]
+        return self.known(self.edits1(word)) | self.known(self.edits2(word))
 
-    def known(self, words, method):
+    def known(self, words):
         "The subset of `words` that appear in the dictionary of WORDS."
-        if method == "edit":
-            known = []
-            only_words = [a_tuple[0] for a_tuple in words]
-            for w in only_words:
-                if w in self.lm.vocabulary:
-                    for a_tuple in words:
-                        if a_tuple[0] == w:
+        known = []
+        only_words = [a_tuple[0] for a_tuple in words]
+        for w in only_words:
+            if w in self.lm.vocabulary:
+                for a_tuple in words:
+                    if a_tuple[0] == w:
+                        if len(a_tuple) == 2: #edit1
                             known.append((w, a_tuple[1]))
-            return set(known)
-
-        else:  # none
-            return set(w for w in words if w in self.lm.vocabulary)
+                        else: #edit2
+                            known.append((w,a_tuple[1],a_tuple[2]))
+        the_set = set(known)
+        return the_set
 
     # probability of word
     def P(self, candidate):
-        if not type(candidate) is tuple:  # naive calculation
-            return self.lm.vocabulary[candidate] / sum(self.lm.vocabulary.values())
-        else:  # candidates are tuples-> multiply prior with p(x|y)
-            # correction = 0
-            # self.error_table[candidate[1][]]
+        if len(candidate) == 2: #edit1 returned word
+            return self.calculate_P_once(candidate)
+        else: #edit2 returned word
+            splitted = candidate[2].split()
+            mechane = self.calculate_normalization_for_noisy_channel(splitted[0], splitted[1])
+            if not mechane == 0:
+                return self.calculate_P_once((candidate[1][0], candidate[1][1]))/mechane
+            else:
+                return 0
+
+    def calculate_P_once(self, candidate):
+        keys = candidate[1].split()
+        if keys[1] in self.error_table[keys[0]]:
+            count_mone = self.error_table[keys[0]][keys[1]]
+            if count_mone == 0:
+                return 0
+            else:
+                N = sum(self.lm.vocabulary.values())
+                mechane = self.calculate_normalization_for_noisy_channel(keys[0], keys[1])
+                if candidate[0] in self.lm.vocabulary:
+                    prior = self.lm.vocabulary[candidate[0]] / N
+                    return (count_mone / mechane) * prior
+                else:
+                    return 0
+        else:
             return 0
+
+    def calculate_normalization_for_noisy_channel(self,error_type, the_correction):
+        count = 0
+        if error_type == "deletion" or error_type == "transposition":
+            if "#" in the_correction:
+                the_correction = the_correction[1]
+            for word in self.lm.vocabulary:
+                if the_correction in word:
+                    count += 1
+        elif error_type == "insertion":
+            if "#" in the_correction:
+                the_correction = the_correction[1]
+            for word in self.lm.vocabulary:
+                if the_correction[0] in word:
+                    count+=1
+        else: #error_type == "substitution":
+            for word in self.lm.vocabulary:
+                if the_correction[1] in word:
+                    count+=1
+        return count
+
 
     def edits1(self, word):
         "All edits that are one edit away from `word`."
         letters = 'abcdefghijklmnopqrstuvwxyz'
         splits = [(word[:i], word[i:]) for i in range(len(word) + 1)]
 
-        deletes = [(L + R[1:], "deletion " + L[len(L)-1:len(L)] + R[0:1]) for L, R in splits if R] #right for sure
-        transposes = [(L + R[1] + R[0] + R[2:], "transposition " + R[0] + R[1]) for L, R in splits if len(R) > 1] #right for sure
-        replaces = [(L + c + R[1:], "substitution " + c + R[0:1]) for L, R in splits if R for c in letters] #right for sure
-        inserts = [(L + c + R, "insertion " + L[0:1] + c) for L, R in splits for c in letters] #right for sure
+        inserts = [(L + c + R, "insertion #" + c) if L[0:1] == "" else (L + c + R, "insertion " + L[0:1] + c) for L, R in splits for c in letters]
+        deletes = [(L + R[1:], "deletion #" + R[0:1]) if L[len(L)-1:len(L)] == "" else (L + R[1:], "deletion "+ L[len(L)-1:len(L)] + R[0:1]) for L, R in splits if R]
+        transposes = [(L + R[1] + R[0] + R[2:], "transposition " + R[0] + R[1]) for L, R in splits if len(R) > 1]
+        replaces = [(L + c + R[1:], "substitution " + c + R[0:1]) for L, R in splits if R for c in letters]
 
         the_set = set(deletes + transposes + replaces + inserts)
         return the_set
 
     def edits2(self, word):
         "All edits that are two edits away from `word`."
-        return (e2 for e1 in self.edits1(word) for e2 in self.edits1(e1))
+        set_e2 = []
+        for e1 in self.edits1(word):
+            for e2 in self.edits1(e1[0]):
+                set_e2.append((e2[0],e1,e2[1]))
+        return set(set_e2)
+        #return (e2 for e1 in self.edits1(word) for e2 in self.edits1(e1))
 
     #####################################################################
     #                   Inner class                                     #
