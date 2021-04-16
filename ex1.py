@@ -43,7 +43,7 @@ class Spell_Checker:
                     splitted_text[i] = self.error_table[splitted_text[i]]
                 else:
                     candidates = self.candidates(splitted_text[i])
-                    max_candidate = self.calculate_max_candidate(candidates, type([candidates][0] is tuple))
+                    max_candidate = max(candidates, key=self.P)
                     splitted_text[i] = max_candidate
                 return " ".join(splitted_text)
         # we only achieved here if the text does not include a word that doesnt exist (assumption: a text includes only one error)
@@ -69,22 +69,23 @@ class Spell_Checker:
             return set(w for w in words if w in self.lm.vocabulary)
 
     # probability of word
-    def P(self, candidate, corrected):
-        if not corrected:
+    def P(self, candidate):
+        if not type(candidate) is tuple:  # naive calculation
             return self.lm.vocabulary[candidate] / sum(self.lm.vocabulary.values())
-        else:
-            correction = 0
-            self.error_table[candidate[1][]]
+        else:  # candidates are tuples-> multiply prior with p(x|y)
+            # correction = 0
+            # self.error_table[candidate[1][]]
+            return 0
 
     def edits1(self, word):
         "All edits that are one edit away from `word`."
         letters = 'abcdefghijklmnopqrstuvwxyz'
         splits = [(word[:i], word[i:]) for i in range(len(word) + 1)]
 
-        deletes = [(L + R[1:], "deletion") for L, R in splits if R]
-        transposes = [(L + R[1] + R[0] + R[2:], "transposition") for L, R in splits if len(R) > 1]
-        replaces = [(L + c + R[1:], "substitution") for L, R in splits if R for c in letters]
-        inserts = [(L + c + R, "insertion") for L, R in splits for c in letters]
+        deletes = [(L + R[1:], "deletion " + L[len(L)-1:len(L)] + R[0:1]) for L, R in splits if R] #right for sure
+        transposes = [(L + R[1] + R[0] + R[2:], "transposition " + R[0] + R[1]) for L, R in splits if len(R) > 1] #right for sure
+        replaces = [(L + c + R[1:], "substitution " + c + R[0:1]) for L, R in splits if R for c in letters] #right for sure
+        inserts = [(L + c + R, "insertion " + L[0:1] + c) for L, R in splits for c in letters] #right for sure
 
         the_set = set(deletes + transposes + replaces + inserts)
         return the_set
@@ -92,12 +93,6 @@ class Spell_Checker:
     def edits2(self, word):
         "All edits that are two edits away from `word`."
         return (e2 for e1 in self.edits1(word) for e2 in self.edits1(e1))
-
-    def calculate_max_candidate(self, candidates, corrected):
-        if corrected:  # candidates are tuples-> multiply prior with p(x|y)
-            return max(candidates,key=self.P, True)
-        else:
-            return max(candidates, key=self.P, False)
 
     #####################################################################
     #                   Inner class                                     #
