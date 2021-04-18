@@ -13,6 +13,7 @@ class Spell_Checker:
 
     def __init__(self, lm=None):
         self.lm = lm
+        self.calculated_candidates = {}
 
     def add_language_model(self, lm):
         self.lm = lm
@@ -34,18 +35,29 @@ class Spell_Checker:
         Return:
             A modified string (or a copy of the original if no corrections are made.)
     """
+
     def spell_check(self, text, alpha):
+        self.text_to_check = text
         splitted_text = text.split()
         for i in range(0, len(splitted_text)):
             if splitted_text[i] not in self.lm.vocabulary:
+                self.unreal_word_index = i
                 candidates = self.candidates(splitted_text[i])
-                # Ps = {}
-                # for candidate in candidates:
-                #     Ps[candidate[0]] = self.P(candidate)
                 max_candidate = max(candidates, key=self.P)
                 splitted_text[i] = max_candidate[0]
                 return " ".join(splitted_text)
-        # we only achieved here if the text does not include a word that doesnt exist (assumption: a text includes only one error)
+        # we only achieved here if the text does not include a word that doesnt exist (assumption: a text includes
+        # only one error)
+        Ps = {}
+        for wrong_word_idx in range(0, len(splitted_text)):
+            self.unreal_word_index = wrong_word_idx
+            list_candidates = self.candidates(splitted_text[wrong_word_idx])
+            for candidate in list_candidates:
+                Ps[self.P(candidate)] = (candidate[0], wrong_word_idx)
+
+        max_candidate = Ps[max(Ps.keys())]
+        splitted_text[max_candidate[1]] = max_candidate[0]
+        return " ".join(splitted_text)
 
     def candidates(self, word):
         "Generate possible spelling corrections for word."
@@ -59,22 +71,22 @@ class Spell_Checker:
             if w in self.lm.vocabulary:
                 for a_tuple in words:
                     if a_tuple[0] == w:
-                        if len(a_tuple) == 2: #edit1
+                        if len(a_tuple) == 2:  # edit1
                             known.append((w, a_tuple[1]))
-                        else: #edit2
-                            known.append((w,a_tuple[1],a_tuple[2]))
+                        else:  # edit2
+                            known.append((w, a_tuple[1], a_tuple[2]))
         the_set = set(known)
         return the_set
 
     # probability of word
     def P(self, candidate):
-        if len(candidate) == 2: #edit1 returned word
+        if len(candidate) == 2:  # edit1 returned word
             return self.calculate_P_once(candidate)
-        else: #edit2 returned word
+        else:  # edit2 returned word
             splitted = candidate[2].split()
             mechane = self.calculate_normalization_for_noisy_channel(splitted[0], splitted[1])
             if not mechane == 0:
-                return self.calculate_P_once((candidate[1][0], candidate[1][1]))/mechane
+                return self.calculate_P_once((candidate[1][0], candidate[1][1])) / mechane
             else:
                 return 0
 
@@ -88,14 +100,34 @@ class Spell_Checker:
                 N = sum(self.lm.vocabulary.values())
                 mechane = self.calculate_normalization_for_noisy_channel(keys[0], keys[1])
                 if candidate[0] in self.lm.vocabulary:
-                    prior = self.lm.vocabulary[candidate[0]] / N
-                    return (count_mone / mechane) * prior
+                    noisy_channel = count_mone / mechane
+                    if len(self.text_to_check.split()) < self.lm.n:  # calculate with prior
+                        prior = self.lm.vocabulary[candidate[0]] / N
+                        return noisy_channel * prior
+                    else:
+                        if candidate[0] not in self.calculated_candidates:
+                            context_evaluate = self.calc_probability_depends_on_context(candidate[0])
+                            self.calculated_candidates[candidate[0]] = context_evaluate
+                            return noisy_channel * context_evaluate
+                        else:
+                            return noisy_channel * self.calculated_candidates[candidate[0]]
                 else:
                     return 0
         else:
             return 0
 
-    def calculate_normalization_for_noisy_channel(self,error_type, the_correction):
+    def calc_probability_depends_on_context(self, candidate):
+        splitted_text = self.text_to_check.split()
+        splitted_text[self.unreal_word_index] = candidate
+        text = " ".join(splitted_text)
+        my_ngrams = ngrams(re.findall(r'\w+', text.lower()), self.lm.n)
+        multiply = 1
+        for ngram in my_ngrams:
+            if candidate in " ".join(ngram):
+                multiply = multiply * math.pow(10, self.evaluate(" ".join(ngram)))
+        return multiply
+
+    def calculate_normalization_for_noisy_channel(self, error_type, the_correction):
         count = 0
         if error_type == "deletion" or error_type == "transposition":
             if "#" in the_correction:
@@ -108,21 +140,22 @@ class Spell_Checker:
                 the_correction = the_correction[1]
             for word in self.lm.vocabulary:
                 if the_correction[0] in word:
-                    count+=1
-        else: #error_type == "substitution":
+                    count += 1
+        else:  # error_type == "substitution":
             for word in self.lm.vocabulary:
                 if the_correction[1] in word:
-                    count+=1
+                    count += 1
         return count
-
 
     def edits1(self, word):
         "All edits that are one edit away from `word`."
         letters = 'abcdefghijklmnopqrstuvwxyz'
         splits = [(word[:i], word[i:]) for i in range(len(word) + 1)]
 
-        inserts = [(L + c + R, "insertion #" + c) if L[0:1] == "" else (L + c + R, "insertion " + L[0:1] + c) for L, R in splits for c in letters]
-        deletes = [(L + R[1:], "deletion #" + R[0:1]) if L[len(L)-1:len(L)] == "" else (L + R[1:], "deletion "+ L[len(L)-1:len(L)] + R[0:1]) for L, R in splits if R]
+        inserts = [(L + c + R, "insertion #" + c) if L[0:1] == "" else (L + c + R, "insertion " + L[0:1] + c) for L, R
+                   in splits for c in letters]
+        deletes = [(L + R[1:], "deletion #" + R[0:1]) if L[len(L) - 1:len(L)] == "" else (
+            L + R[1:], "deletion " + L[len(L) - 1:len(L)] + R[0:1]) for L, R in splits if R]
         transposes = [(L + R[1] + R[0] + R[2:], "transposition " + R[0] + R[1]) for L, R in splits if len(R) > 1]
         replaces = [(L + c + R[1:], "substitution " + c + R[0:1]) for L, R in splits if R for c in letters]
 
@@ -134,9 +167,10 @@ class Spell_Checker:
         set_e2 = []
         for e1 in self.edits1(word):
             for e2 in self.edits1(e1[0]):
-                set_e2.append((e2[0],e1,e2[1]))
+                if not e2[0] == word:
+                    set_e2.append((e2[0], e1, e2[1]))
         return set(set_e2)
-        #return (e2 for e1 in self.edits1(word) for e2 in self.edits1(e1))
+        # return (e2 for e1 in self.edits1(word) for e2 in self.edits1(e1))
 
     #####################################################################
     #                   Inner class                                     #
@@ -258,14 +292,11 @@ class Spell_Checker:
 
         def smooth(self, ngram):
             ngram_minus_one = ngram.rsplit(' ', 1)[0]
-            if ngram not in self.model_dict:
-                self.model_dict[ngram] = 1
-            if ngram_minus_one not in self.n_minus_one_dict:
-                self.n_minus_one_dict[ngram_minus_one] = 1
+            counter_minus_1 = 0 if ngram_minus_one not in self.n_minus_one_dict else self.n_minus_one_dict[
+                ngram_minus_one]
+            counter_ngram = 0 if ngram not in self.model_dict else self.model_dict[ngram]
 
-            mone = self.model_dict[ngram]
-            mechane = self.n_minus_one_dict[ngram_minus_one] + len(self.n_minus_one_dict)
-            return mone / mechane
+            return counter_ngram + 1 / (counter_minus_1 + len(self.n_minus_one_dict))
 
         def evaluate(self, text):
             text_ngrams = ngrams(re.findall(r'\w+', text.lower()), self.n)
@@ -273,7 +304,7 @@ class Spell_Checker:
             for ngram in text_ngrams:
                 ngram = " ".join(ngram)
                 ngram_minus_one = ngram.rsplit(' ', 1)[0]
-                if (ngram not in self.model_dict) or (ngram_minus_one not in self.n_minus_one_dict):
+                if ngram not in self.model_dict:
                     probability = self.smooth(ngram)
                 else:
                     probability = self.model_dict[ngram] / self.n_minus_one_dict[ngram_minus_one]
@@ -285,16 +316,23 @@ class Spell_Checker:
 
 
 def normalize_text(text):
-    """Returns a normalized version of the specified string.
-      You can add default parameters as you like (they should have default values!)
-      You should explain your decisions in the header of the function.
-
-      Args:
-        text (str): the text to normalize
-
-      Returns:
-        string. the normalized text.
-    """
+    lowered_text = text.lower()
+    set_punctuations = {char for char in '''!()-[]{};:'"\,<>./?@#$%^&*_~'''}
+    set_punctuations.add('\n')
+    normalized_text = ''
+    for index in range(len(lowered_text)):
+        try:
+            if lowered_text[index] not in set_punctuations:
+                normalized_text += lowered_text[index]
+            else:
+                try:
+                    if lowered_text[index + 1] != ' ' and lowered_text[index - 1] != ' ':
+                        normalized_text += ' '
+                except IndexError:
+                    continue
+        except UnicodeDecodeError:
+            continue
+    return normalized_text
 
 
 def who_am_i():
