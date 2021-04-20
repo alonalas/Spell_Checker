@@ -469,8 +469,8 @@ def normalize_text(text):
         try:
             if to_lower[i] in punctuations:
                 try:
-                    if to_lower[i + 1] != ' ' and to_lower[i - 1] != ' ':
-                        normalized_text += ' '
+                    if to_lower[i + 1] != " " and to_lower[i - 1] != " ":
+                        normalized_text += " "
                 except IndexError:
                     continue
             else:
